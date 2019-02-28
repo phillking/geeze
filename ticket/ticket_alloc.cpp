@@ -28,10 +28,12 @@ struct ticket_info
 {
 	int start = -1;
 	int end = -1;
-	int num = -1;
+	uint32_t num = 0;
 };
 
 std::vector<int> SEAT_LAYOUT[TOTAL_TICKET];
+
+uint32_t seat_lsb[TOTAL_TICKET] = {0};
 
 int get_random()
 {
@@ -117,7 +119,7 @@ int generate_ticket(std::vector<ticket_info>& tickets)
 	std::cout<<"Generated tickets number: "<<tickets.size()<<endl;
 	for(auto& ticket: tickets)
 	{
-		//		std::cout<<ticket.start+1<<","<<ticket.end+2<<","<<ticket.num<<std::endl;
+//		std::cout<<ticket.start+1<<","<<ticket.end+2<<","<<ticket.num<<std::endl;
 		test_file<<ticket.start+1<<","<<ticket.end+2<<","<<ticket.num<<std::endl;
 	}
 	test_file.close();
@@ -190,18 +192,19 @@ std::vector<ticket_info> allocate_ticket(std::vector<ticket_info>& tickets)
 		bool new_line = true;
 		int insert_line = 0;
 		int insert_value = 0;
-		uint32_t max_lsb = 32;
+		uint32_t max_lsb = 0x80000000;
 		for(size_t i=0; i<allocated_box.size(); i++)
 		{
-			if((item.first & allocated_box[i]) == 0)
+			if(item.first < seat_lsb[i])
 			{
 				if(bnormal)
 				{
-				allocated_box[i] |= item.first;
-				new_line = false;
-				item.second->num = i;
-				new_tickets.push_back(*item.second);
-				break;
+					allocated_box[i] |= item.first;
+					new_line = false;
+					item.second->num = i;
+					new_tickets.push_back(*item.second);
+					seat_lsb[i] = get_lowest_1(item.first);
+					break;
 				}
 				else
 				{
@@ -222,6 +225,7 @@ std::vector<ticket_info> allocate_ticket(std::vector<ticket_info>& tickets)
 			allocated_box[insert_line] |= insert_value;
 			item.second->num = insert_line;
 			new_tickets.push_back(*item.second);
+			seat_lsb[insert_line] = get_lowest_1(insert_value);
 		}
 
 		if(new_line)
@@ -230,6 +234,7 @@ std::vector<ticket_info> allocate_ticket(std::vector<ticket_info>& tickets)
 			item.second->num = allocated_box.size();
 			new_tickets.push_back(*item.second);
 			allocated_box.push_back(item.first);
+			seat_lsb[item.second->num] = get_lowest_1(item.first);
 		}
 	}
 
