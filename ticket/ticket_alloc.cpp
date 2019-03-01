@@ -19,9 +19,11 @@
 #include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <sstream>
+#include <queue>
 
 #define MAX_STATION 11
-#define TOTAL_TICKET 50000
+#define TOTAL_SEAT 500000
+#define BIT_WIDTH 32
 
 using namespace std;
 struct ticket_info
@@ -31,9 +33,11 @@ struct ticket_info
 	uint32_t num = 0;
 };
 
-std::vector<int> SEAT_LAYOUT[TOTAL_TICKET];
+std::vector<int> SEAT_LAYOUT[TOTAL_SEAT];
 
-uint32_t seat_lsb[TOTAL_TICKET] = {0};
+uint32_t seat_lsb[TOTAL_SEAT] = {0};
+
+std::queue<uint32_t> lsb_table[32];
 
 int get_random()
 {
@@ -45,6 +49,28 @@ uint32_t get_lowest_1(uint32_t num)
 	if(num == 0)
 		return num;
 	return num^(num&(num-1));
+}
+
+uint32_t get_highest_1(uint32_t num)
+{
+	if(num == 0)
+		return num;
+
+	while((num&(num-1))>0)
+		num = num&(num-1);
+
+	return num;
+}
+
+uint32_t get_bit_count(uint32_t num)
+{
+	uint32_t count = 0;
+	while(num>0)
+	{
+		num = num>>1;
+		count++;
+	}
+	return count;
 }
 
 std::vector<ticket_info> read_tickets(std::string& file_name)
@@ -85,7 +111,7 @@ int generate_ticket(std::vector<ticket_info>& tickets)
 
 	int ticket_count = 0;
 
-	for(int i=0; i<TOTAL_TICKET && ticket_count<generated_ticket; i++)
+	for(int i=0; i<TOTAL_SEAT && ticket_count<generated_ticket; i++)
 	{
 		std::set<int> random_range ;
 		int random_count = get_random();
@@ -245,6 +271,66 @@ std::vector<ticket_info> allocate_ticket(std::vector<ticket_info>& tickets)
 }
 
 
+std::vector<ticket_info> new_allocate_ticket(std::vector<ticket_info>& tickets )
+{
+
+
+	std::multimap<uint32_t, ticket_info*, std::greater<uint32_t> > bit_ticket;
+	for(auto& ticket:tickets)
+	{
+		int start_bits = ticket.start;
+		int end_bits = ticket.end;
+
+		int bit_value = 0;
+		for(int i=start_bits; i<=end_bits; i++)
+		{
+			bit_value |= 1<<(BIT_WIDTH - 1 -i);
+		}
+		bit_ticket.insert(std::make_pair(bit_value, &ticket));
+	}
+
+	auto start = std::chrono::system_clock::now();
+	allocated_box.clear();
+	std::vector<ticket_info> new_tickets;
+
+	for(auto item:bit_ticket)
+	{
+		bool new_line = true;
+
+		uint32_t start_bit = BIT_WIDTH - item.second->start;
+		for(int i= start_bit; i<BIT_WIDTH; i++)
+		{
+			if(lsb_table[i].size() > 0)
+			{
+				new_line = false;
+				item.second->num = lsb_table[i].front();
+				lsb_table[i].pop();
+				allocated_box[item.second->num] |= item.first;
+				int end_count = BIT_WIDTH -1 - item.second->end;
+				lsb_table[end_count].push(item.second->num);
+				new_tickets.push_back(*item.second);
+				break;
+			}
+		}
+
+
+		if(new_line)
+		{
+			item.second->num = allocated_box.size();
+			new_tickets.push_back(*item.second);
+			allocated_box.push_back(item.first);
+			int end_count = BIT_WIDTH -1 - item.second->end;
+			lsb_table[end_count].push(item.second->num);
+		}
+	}
+
+	auto time1 = std::chrono::system_clock::now();
+	std::chrono::duration<double> elapsed_seconds = time1 -start;
+	std::cout<<std::fixed<<std::setprecision(6)<<"It takes  "<<elapsed_seconds.count() <<" second for matching!"<<endl;
+	return new_tickets;
+}
+
+
 int main(int argc, char* argv[])
 {
 	cout << "!!!Ticket allocation!!!" << endl;
@@ -253,17 +339,18 @@ int main(int argc, char* argv[])
 	{
 		filename = argv[1];
 	}
-	std::vector<ticket_info> gen_tickets;
-	generate_ticket(gen_tickets);
+//	std::vector<ticket_info> gen_tickets;
+//	generate_ticket(gen_tickets);
 	std::vector<ticket_info> tickets = read_tickets(filename);
 
 
 
 
 	std::cout<<"allocated tickets!"<<endl;
-	auto start = std::chrono::system_clock::now();
+
 	get_max_seat(tickets);
-	std::vector<ticket_info> new_tickets = allocate_ticket(tickets);
+	auto start = std::chrono::system_clock::now();
+	std::vector<ticket_info> new_tickets  = new_allocate_ticket(tickets);
 
 	auto time1 = std::chrono::system_clock::now();
 	std::chrono::duration<double> elapsed_seconds = time1 -start;
@@ -310,9 +397,9 @@ int main(int argc, char* argv[])
 		SEAT_LAYOUT[ticket.num][ticket.end] = 9;
 	}
 
-
-
-	std::cout<<setw(4)<<"";
+//	return 0;
+	int width = 4;
+	std::cout<<setw(width)<<"";
 	for(int i=0; i<MAX_STATION; i++)
 	{
 
@@ -321,17 +408,17 @@ int main(int argc, char* argv[])
 	std::cout<<std::endl;
 	for(size_t i=0; i<allocated_box.size(); i++)
 	{
-		std::cout<<setw(4)<<i+1;
+		std::cout<<setw(width)<<i+1;
 		for(int j=0; j<MAX_STATION; j++)
 		{
 			if(SEAT_LAYOUT[i][j] == 6)
-				std::cout<<std::setw(4)<<"[1 ";
+				std::cout<<std::setw(width)<<"[1 ";
 			if(SEAT_LAYOUT[i][j] == 9)
-				std::cout<<std::setw(4)<<"1]";
+				std::cout<<std::setw(width)<<"1]";
 			if(SEAT_LAYOUT[i][j] == 8)
-				std::cout<<std::setw(4)<<"1 ";
+				std::cout<<std::setw(width)<<"1 ";
 			if(SEAT_LAYOUT[i][j] == 0)
-				std::cout<<std::setw(4)<<"0 ";
+				std::cout<<std::setw(width)<<"0 ";
 		}
 
 		std::cout<<endl;
