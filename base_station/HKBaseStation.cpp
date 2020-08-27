@@ -25,7 +25,7 @@ public:
 
 	int dir[4][2] = {{-1,0}, {1,0},{0,1},{0,-1}};
 
-	vector<bool> status;
+	vector<int> status;
 	vector<int> visited;
 	vector<int> matchRight;
 	vector<int> matchLeft;
@@ -35,16 +35,10 @@ public:
 
 public:
 
-	bool bfs(vector<int>& left,  vector<vector<int>>& adj){
+	bool bfs(queue<int> q,  vector<vector<int>>& adj){
 		std::fill(disLeft.begin(), disLeft.end(), 0);
 		std::fill(disRight.begin(), disRight.end(), 0);
 		curDistance = INT_MAX;
-		queue<int> q;
-		for(size_t i=0; i<left.size(); i++){
-			if(matchLeft[i] == 0 && !adj[i].empty()){
-				q.push(i);
-			}
-		}
 
 		bool flag = false;
 		while(!q.empty()){
@@ -72,14 +66,13 @@ public:
 		return flag;
 	}
 
-	bool dfs(vector<vector<int>>& adj, int u){
+	bool dfs(vector<vector<int>>& adj, int label, int u){
 		for(size_t i=0; i<adj[u].size(); i++){
 			int v = adj[u][i];
-			if(!status[v] && disRight[v] == disLeft[u]+1){
-				status[v] = true;
-				visited.push_back(v);
+			if(status[v] !=label && disRight[v] == disLeft[u]+1){
+				status[v] = label;
 //				if(matchRight[v]!=0 && disRight[v] == curDistance) continue;
-				if(!matchRight[v] || dfs(adj, matchRight[v])){
+				if(!matchRight[v] || dfs(adj, label, matchRight[v])){
 					matchRight[v] = u;
 					matchLeft[u] = v;
 					return true;
@@ -90,9 +83,9 @@ public:
 	}
 
 
-	vector<vector<Point>> getMinStations(vector<Point> places){
+	vector<vector<Point>> getMinStations(vector<Point>& places){
 
-		memset(graph, 0, sizeof graph);
+//		memset(graph, 0, sizeof graph);
 		vector<vector<Point>> res;
 		// handle the points with 0 degree first;
 		const int placesSize = places.size();
@@ -110,6 +103,7 @@ public:
 				int ny = p.y + dir[j][1];
 				if(graph[nx][ny] != 0){
 					count++;
+					if(count>1) break;
 					next.x = nx;
 					next.y = ny;
 				}
@@ -120,7 +114,7 @@ public:
 				p.x = 0;
 				graph[p.x][p.y] = 0;
 			}
-			if(count == 1){
+			else if(count == 1){
 				countOne++;
 				vector<Point> tmp;
 				tmp.push_back(p);
@@ -165,7 +159,7 @@ public:
 
 		vector<vector<int>> adj(leftSize);
 		for(int i=1; i<leftSize; i++){
-			Point p = places[left[i]];
+			const Point& p = places[left[i]];
 			for(int j=0; j<4; j++){
 				int nx = p.x + dir[j][0];
 				int ny = p.y + dir[j][1];
@@ -181,31 +175,41 @@ public:
 		disRight.resize(rightSize);
 		status.resize(rightSize);
 
-
-		while(bfs(left, adj)){
-			for(const auto v:visited){
-				status[v] = false;
+		queue<int> q;
+		for(size_t i=1; i<left.size(); i++){
+			if(matchLeft[i] == 0 && !adj[i].empty()){
+				q.push(i);
 			}
-			visited.clear();
-			for(int i=1; i<leftSize; i++){
-				if(matchLeft[i] == 0 && !adj[i].empty()){
-					dfs(adj, i);
+		}
+
+		int label = 0;
+		while(bfs(q, adj)){
+			label++;
+			const int size = q.size();
+//			cout<<size<<std::endl;
+			for(int i=0; i<size; i++){
+				int u = q.front();
+				q.pop();
+				if(matchLeft[u] == 0 && !adj[u].empty()){
+					if(!dfs(adj, label, u)){
+						q.push(u);
+					}
 				}
 			}
 		}
 
 		for(int i=1; i<leftSize; i++){
-			Point p = places[left[i]];
+			Point& p = places[left[i]];
 			vector<Point> tmp{p};
 			if(matchLeft[i] != 0){
-				Point p2 = places[right[matchLeft[i]]];
+				Point& p2 = places[right[matchLeft[i]]];
 				tmp.push_back(p2);
 			}
 			res.push_back(tmp);
 		}
 		for(int i=1; i<rightSize; i++){
 			if(matchRight[i] == 0){
-				Point p = places[right[i]];
+				Point& p = places[right[i]];
 				res.push_back({{p}});
 			}
 		}
@@ -257,7 +261,7 @@ int main(int argc, char* argv[]) {
 	auto time1 = std::chrono::system_clock::now();
 	std::chrono::duration<double> elapsed_seconds = time1 -start;
 
-	std::cout<<std::fixed<<std::setprecision(6)<<"It takes  "<<elapsed_seconds.count() <<" second to get the solution"<<endl;
+	std::cout<<std::fixed<<std::setprecision(6)<<"It takes "<<elapsed_seconds.count() <<" seconds to get the solution"<<endl;
 
 	cout<<res.size()<<endl;
 	//	for(auto& station:res){

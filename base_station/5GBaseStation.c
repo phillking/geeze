@@ -22,7 +22,7 @@ typedef struct Point{
 
 #define MAXSIZE 2048
 static int graph[MAXSIZE][MAXSIZE];
-static int dir[4][2] = {{-1,0}, {1,0},{0,1},{0,-1}};
+static int dir[4][2] = {{0,1},{0,-1},{1,0},{-1,0}};
 
 
 static int adj[2040200][5];
@@ -97,7 +97,6 @@ int preProcessor(Point* places, int size,Point** res, int resIndex){
 }
 
 Point** getMinStations(Point* places, const int size,  int* returnSize){
-	//	memset(graph, 0, sizeof (graph));
 	for(int i=0; i<size; i++){
 		graph[places[i].x][places[i].y] = i+1;
 	}
@@ -105,7 +104,7 @@ Point** getMinStations(Point* places, const int size,  int* returnSize){
 	// allocate memory for return 2d array
 	Point **res = (Point**) malloc(size * sizeof(Point*));
 	for(int i=0; i<size; i++){
-		res[i] = (Point*) calloc(2, sizeof(Point));
+		res[i] = (Point*) malloc(2*sizeof(Point));
 
 	}
 	int resIndex = 0;
@@ -222,7 +221,6 @@ Point** getMinStations(Point* places, const int size,  int* returnSize){
 	int* q = (int*) malloc(rightSize * sizeof(int));
 	int* prev = (int*) malloc(leftSize * sizeof(int));
 	for(int i=1; i<leftSize; i++){
-		if(matchLeft[i] != 0) continue;
 		int head = 0;
 		int tail = 0;
 		q[tail++] = i;
@@ -230,11 +228,10 @@ Point** getMinStations(Point* places, const int size,  int* returnSize){
 		int flag = 0;
 		while(!flag && (head<tail) ){
 			const int u = q[head++];
-			for(int j=1;!flag && j<=adj[u][0]; j++){
+			for(int j=1; !flag && j<=adj[u][0]; j++){
 				const int v = adj[u][j];
 				if(visited[v] != i && mark[visited[v]]==0){
 					visited[v] = i;
-					q[tail++] = matchRight[v];
 					if(matchRight[v] == 0){
 						flag = 1;
 						int d = u;
@@ -245,9 +242,9 @@ Point** getMinStations(Point* places, const int size,  int* returnSize){
 							matchLeft[d] = e;
 							e = tmp;
 							d = prev[d];
-
 						}
 					}else{
+						q[tail++] = matchRight[v];
 						prev[matchRight[v]] = u;
 					}
 				}
@@ -263,12 +260,16 @@ Point** getMinStations(Point* places, const int size,  int* returnSize){
 		res[resIndex][0] = places[left[i]];
 		if(matchLeft[i] != 0){
 			res[resIndex][1] = places[right[matchLeft[i]]];
+		}else{
+			res[resIndex][1].x = 0;
 		}
 		resIndex++;
 	}
 	for(int i=1; i<rightSize; i++){
 		if(matchRight[i] == 0){
+			res[resIndex][1].x = 0;
 			res[resIndex++][0] = places[right[i]];
+
 		}
 	}
 
@@ -328,22 +329,19 @@ int main(int argc, char* argv[]) {
 	struct timeval start, end;
 
 	// start timer.
-	gettimeofday(&start, NULL);
 	int num = 0;
+	gettimeofday(&start, NULL);
 	Point** res = getMinStations(places, total, &num);
-
-
 	// stop timer.
 	gettimeofday(&end, NULL);
 
 	// Calculating total time taken by the program.
 	double time_taken;
-
 	time_taken = (end.tv_sec - start.tv_sec) * 1e6;
 	time_taken = (time_taken + (end.tv_usec -
 			start.tv_usec)) * 1e-6;
 	printf("It takes %f seconds.\n", time_taken);
-	//	printf("%d\n", num);
+	printf("%d\n", num);
 	//	for(int i=0; i<num; i++){
 	//		for(int j=0; j<2; j++){
 	//			if(res[i][j].x<=0 || res[i][j].x>=10000 || res[i][j].y<=0 || res[i][j].y>=10000){
